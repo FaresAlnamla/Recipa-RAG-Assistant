@@ -1,4 +1,5 @@
 # ---- Python (backend) ----
+__pycache__/
 backend/.venv/
 backend/venv/
 backend/__pycache__/
