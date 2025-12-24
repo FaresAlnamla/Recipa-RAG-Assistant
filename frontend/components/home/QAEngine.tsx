@@ -3,10 +3,7 @@
 import React, { useState, useRef, useEffect, FormEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { 
-  Loader2, AlertCircle, Copy, Check, Search, ArrowRight, 
-  StopCircle, Trash2, Brain, BookOpen, MessageSquare, ChevronDown, ChevronUp 
-} from "lucide-react";
+import { Loader2, AlertCircle, Copy, Check, Search, ArrowRight, StopCircle, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,21 +14,11 @@ import { API_BASE_URL, SUGGESTED_QUESTIONS } from "@/lib/constants";
 
 type HistoryEntry = { question: string; answer: string; };
 
-// Types for Transparency Panels
-type AgentStep = 'idle' | 'planning' | 'retrieving' | 'generating' | 'completed';
-
 export default function QAEngine() {
   const { toast } = useToast();
   const [question, setQuestion] = useState("");
   const [history, setHistory] = useState<HistoryEntry[]>([]);
-  
-  // Split State for Transparency
-  const [currentStep, setCurrentStep] = useState<AgentStep>('idle');
-  const [agentThought, setAgentThought] = useState("");
-  const [sources, setSources] = useState<string[]>([]);
   const [currentAnswer, setCurrentAnswer] = useState("");
-  const [isThoughtExpanded, setIsThoughtExpanded] = useState(true);
-
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [isCopied, setIsCopied] = useState(false);
@@ -52,9 +39,6 @@ export default function QAEngine() {
   const clearHistory = () => {
     setHistory([]);
     setCurrentAnswer("");
-    setAgentThought("");
-    setSources([]);
-    setCurrentStep('idle');
     localStorage.removeItem("recipa-history");
     toast({ title: "History Cleared" });
   };
@@ -64,9 +48,18 @@ export default function QAEngine() {
     try {
       await navigator.clipboard.writeText(currentAnswer);
       setIsCopied(true);
-      toast({ title: "Copied to clipboard" });
+      toast({ title: "Copied", className: "bg-white border-orange-200 text-orange-900" });
       setTimeout(() => setIsCopied(false), 2000);
     } catch { toast({ title: "Failed to copy", variant: "destructive" }); }
+  };
+
+  const handleStop = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsLoading(false);
+      toast({ title: "Stopped", description: "Generation stopped by user." });
+    }
   };
 
   const handleSubmit = async (e?: FormEvent, manualQuestion?: string) => {
@@ -81,9 +74,6 @@ export default function QAEngine() {
     setIsLoading(true);
     setError("");
     setCurrentAnswer("");
-    setAgentThought("");
-    setSources([]);
-    setCurrentStep('planning');
     setIsCopied(false);
 
     try {
@@ -105,38 +95,12 @@ export default function QAEngine() {
         const { value, done } = await reader.read();
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
+        if (!chunk) continue;
         fullText += chunk;
-
-        // --- TRANSPARENCY PARSING LOGIC ---
-        // Assuming backend markers: [THOUGHT]...[/THOUGHT], [SOURCES]...[/SOURCES], [ANSWER]...
-        if (fullText.includes("[THOUGHT]")) {
-            setCurrentStep('planning');
-            const match = fullText.match(/\[THOUGHT\]([\s\S]*?)(?=\[SOURCES\]|\[ANSWER\]|$)/);
-            if (match) setAgentThought(match[1].trim());
-        }
-        
-        if (fullText.includes("[SOURCES]")) {
-            setCurrentStep('retrieving');
-            const match = fullText.match(/\[SOURCES\]([\s\S]*?)(?=\[ANSWER\]|$)/);
-            if (match) {
-                const sourceList = match[1].split("\n").filter(s => s.trim().length > 0);
-                setSources(sourceList);
-            }
-        }
-
-        if (fullText.includes("[ANSWER]")) {
-            setCurrentStep('generating');
-            const parts = fullText.split("[ANSWER]");
-            setCurrentAnswer(parts[parts.length - 1].trim());
-        } else if (!fullText.includes("[THOUGHT]") && !fullText.includes("[SOURCES]")) {
-            // Fallback if no markers are present
-            setCurrentAnswer(fullText);
-        }
+        setCurrentAnswer(fullText);
       }
-      
-      setCurrentStep('completed');
       setQuestion("");
-      setHistory((prev) => [...prev, { question: queryText.trim(), answer: currentAnswer }].slice(-10));
+      setHistory((prev) => [...prev, { question: queryText.trim(), answer: fullText }].slice(-10));
     } catch (err: any) {
       if (err.name !== 'AbortError') setError(err.message || "Something went wrong.");
     } finally {
@@ -146,138 +110,131 @@ export default function QAEngine() {
   };
 
   return (
-    <section id="qa-section" className="min-h-screen flex flex-col justify-center py-20 bg-white border-b border-gray-200 relative overflow-hidden">
-      <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "radial-gradient(#000 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
+    <section 
+      id="qa-section" 
+      // Background set to white
+      className="min-h-screen flex flex-col justify-center py-20 bg-white border-b border-gray-200 transition-colors relative overflow-hidden"
+    >
+      {/* Background Pattern */}
+      <div 
+        className="absolute inset-0 opacity-[0.03] pointer-events-none" 
+        style={{ 
+          backgroundImage: "radial-gradient(#000 1px, transparent 1px)", 
+          backgroundSize: "32px 32px" 
+        }} 
+      />
 
       <div className="max-w-7xl mx-auto px-4 w-full relative z-10">
+        
         <div className="text-center mb-16 md:mb-24">
           <h2 className="text-4xl md:text-6xl font-extrabold text-gray-900 tracking-tight mb-4">
             Ask Recipa<span className="text-orange-600">AI</span>
           </h2>
+          {/* Underline removed per design request */}
           <p className="text-lg md:text-2xl text-slate-600 max-w-3xl mx-auto leading-relaxed font-medium">
-              Transparent, citation-backed recipe intelligence.
+              RecipaAI may make mistakes.
           </p>
         </div>
 
-        <div className="max-w-5xl mx-auto space-y-8">
-          {/* INPUT PANEL */}
+        <div className="max-w-5xl mx-auto space-y-10">
+          {/* Card background is white */}
           <Card className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-200">
-            <div className="h-2 bg-gradient-to-r from-orange-400 to-orange-600 w-full" />
-            <CardContent className="p-6 md:p-10">
+            <div className="h-3 bg-orange-500 w-full" />
+            <CardContent className="p-6 md:p-12">
               <form onSubmit={handleSubmit} className="space-y-6">
-                <Textarea
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                  placeholder="Ask about ingredients, low-cost cooking, or recipe substitutions..."
-                  className="min-h-[120px] text-lg p-6 rounded-xl bg-gray-50 border-2 border-gray-200 focus-visible:border-orange-500 focus-visible:ring-0 transition-all"
-                  disabled={isLoading}
-                />
-                
+                <div className="relative">
+                  {/* TEXTAREA MODIFIED: Changed to white background (bg-white) and black text (text-black) */}
+                  <Textarea
+                    value={question}
+                    onChange={(e) => setQuestion(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), handleSubmit(e))}
+                    placeholder="Enter ingredients or recipe query..."
+                    className="min-h-[160px] text-xl p-6 rounded-xl bg-white text-black placeholder:text-gray-600 border-2 border-gray-400 focus-visible:border-orange-500 focus-visible:ring-0"
+                    disabled={isLoading}
+                  />
+                  {/* ICON CONTAINER MODIFIED: Adjusted colors for white background contrast */}
+                  <div className="absolute bottom-4 right-4 p-2 bg-gray-100 rounded-lg text-gray-600 hidden sm:block border border-gray-300">
+                    <Search className="h-6 w-6" />
+                  </div>
+                </div>
+
                 <div className="flex flex-wrap gap-2">
                   {SUGGESTED_QUESTIONS.map((s, idx) => (
-                    <button key={idx} type="button" onClick={() => { setQuestion(s); handleSubmit(undefined, s); }}
-                      className="text-xs font-bold bg-white text-gray-500 px-3 py-1.5 rounded-full border border-gray-200 hover:border-orange-400 hover:text-orange-600 transition-all">
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => { setQuestion(s); handleSubmit(undefined, s); }}
+                      className="text-sm font-bold bg-white text-gray-600 px-4 py-2 rounded-lg hover:text-orange-700 hover:bg-orange-50 border border-gray-200 hover:border-orange-400 transition-all"
+                    >
                       {s}
                     </button>
                   ))}
                 </div>
 
+                {error && (
+                  <Alert variant="destructive" className="bg-red-50 border-red-200">
+                    <AlertCircle className="h-5 w-5" />
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+
                 <div className="flex gap-4">
-                  <Button type="submit" disabled={isLoading || !question.trim()} className="flex-1 h-16 text-lg font-bold rounded-xl bg-gray-900 hover:bg-black text-white">
-                    {isLoading ? <Loader2 className="animate-spin mr-2" /> : "Analyze Query"}
+                  <Button type="submit" disabled={isLoading || !question.trim()} className="flex-1 h-20 text-xl font-bold rounded-xl bg-gray-900 hover:bg-black text-white">
+                    {isLoading ? <Loader2 className="animate-spin mr-2" /> : <><span className="mr-2">Generate</span> <ArrowRight /></>}
                   </Button>
+                  {isLoading && (
+                    <Button type="button" onClick={handleStop} variant="destructive" className="h-20 w-20 rounded-xl">
+                      <StopCircle className="h-8 w-8" />
+                    </Button>
+                  )}
                 </div>
               </form>
             </CardContent>
           </Card>
 
-          {/* AGENT TRANSPARENCY PIPELINE */}
-          {(isLoading || currentAnswer) && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-              
-              {/* STEP 1: PLANNING/THOUGHT PANEL */}
-              {(agentThought || currentStep === 'planning') && (
-                <Card className="border-l-4 border-l-blue-500 shadow-sm overflow-hidden">
-                  <button 
-                    onClick={() => setIsThoughtExpanded(!isThoughtExpanded)}
-                    className="w-full flex items-center justify-between p-4 bg-blue-50/30 hover:bg-blue-50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3 text-blue-700 font-bold">
-                      <Brain className={`h-5 w-5 ${currentStep === 'planning' ? 'animate-pulse' : ''}`} />
-                      <span>Agent Reasoning</span>
-                    </div>
-                    {isThoughtExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </button>
-                  {isThoughtExpanded && (
-                    <CardContent className="p-6 text-slate-600 italic text-sm leading-relaxed border-t border-gray-100 bg-white">
-                      {agentThought || <Skeleton className="h-4 w-full" />}
-                    </CardContent>
-                  )}
-                </Card>
-              )}
+          {/* LOADING SKELETON */}
+          {isLoading && !currentAnswer && (
+             <div className="space-y-4 p-10 bg-white rounded-2xl shadow-lg border border-gray-200">
+                <Skeleton className="h-12 w-3/4 bg-orange-100/50" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-5/6" />
+                <Skeleton className="h-4 w-full" />
+             </div>
+          )}
 
-              {/* STEP 2: SOURCES PANEL */}
-              {(sources.length > 0 || currentStep === 'retrieving') && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {currentStep === 'retrieving' && sources.length === 0 ? (
-                    [1,2,3].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)
-                  ) : (
-                    sources.map((source, i) => (
-                      <div key={i} className="p-4 rounded-xl border border-orange-100 bg-orange-50/30 flex items-start gap-3 group hover:border-orange-300 transition-all">
-                        <BookOpen className="h-5 w-5 text-orange-600 mt-1 shrink-0" />
-                        <div className="text-xs text-orange-900 font-medium line-clamp-3">
-                          {source}
-                        </div>
-                      </div>
-                    ))
-                  )}
+          {currentAnswer && (
+            <Card id="answer-panel" className="bg-white shadow-lg rounded-2xl animate-in fade-in slide-in-from-bottom-4 duration-500 border border-gray-200">
+              <CardHeader className="bg-white border-b border-gray-100 flex flex-row justify-between items-center py-6 px-10">
+                <CardTitle className="text-2xl font-bold">Generated Result</CardTitle>
+                <div className="flex gap-2">
+                   <Button variant="ghost" size="sm" onClick={clearHistory} className="text-red-500 hover:text-red-700 hover:bg-red-50">
+                     <Trash2 className="h-4 w-4 mr-2"/> Clear
+                   </Button>
+                   <Button variant="outline" size="sm" onClick={handleCopy}>
+                     {isCopied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
+                     {isCopied ? "Saved" : "Copy"}
+                   </Button>
                 </div>
-              )}
-
-              {/* STEP 3: ANSWER PANEL */}
-              {(currentAnswer || currentStep === 'generating') && (
-                <Card className="shadow-2xl border-2 border-gray-100 rounded-2xl overflow-hidden">
-                  <CardHeader className="border-b border-gray-50 flex flex-row justify-between items-center bg-white py-6 px-8">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-orange-600 rounded-lg text-white">
-                            <MessageSquare className="h-5 w-5" />
-                        </div>
-                        <CardTitle className="text-xl font-bold">Expert Synthesis</CardTitle>
-                    </div>
-                    <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={handleCopy} className="rounded-full">
-                            {isCopied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
-                            {isCopied ? "Saved" : "Copy"}
-                        </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-8 md:p-12 bg-white">
-                    {currentStep === 'generating' && !currentAnswer ? (
-                        <div className="space-y-4">
-                            <Skeleton className="h-4 w-full" />
-                            <Skeleton className="h-4 w-[90%]" />
-                            <Skeleton className="h-4 w-[95%]" />
-                        </div>
-                    ) : (
-                        <div className="prose prose-lg prose-slate max-w-none prose-strong:text-orange-700 prose-headings:text-slate-900">
-                        <ReactMarkdown 
-                            remarkPlugins={[remarkGfm]}
-                            components={{
-                                // Custom Citation Component logic can be added here
-                                strong: ({node, ...props}) => <strong className="text-orange-600 font-extrabold" {...props} />,
-                                table: ({node, ...props}) => <div className="overflow-x-auto my-6"><table className="w-full border-collapse" {...props} /></div>,
-                                th: ({node, ...props}) => <th className="bg-slate-50 p-4 border border-slate-200 text-left" {...props} />,
-                                td: ({node, ...props}) => <td className="p-4 border border-slate-100" {...props} />
-                            }}
-                        >
-                            {currentAnswer}
-                        </ReactMarkdown>
-                        </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-            </div>
+              </CardHeader>
+              <CardContent className="p-10">
+                {/* Removed dark mode setting for prose */}
+                <div className="prose prose-lg prose-slate max-w-none">
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      table: ({node, ...props}) => <div className="overflow-x-auto my-6 rounded-lg border border-gray-200"><table className="w-full text-left text-sm" {...props} /></div>,
+                      thead: ({node, ...props}) => <thead className="bg-orange-50 text-orange-900 uppercase font-bold" {...props} />,
+                      th: ({node, ...props}) => <th className="px-6 py-4" {...props} />,
+                      td: ({node, ...props}) => <td className="px-6 py-4 border-t border-gray-100" {...props} />,
+                      li: ({node, ...props}) => <li className="my-2" {...props} />,
+                      strong: ({node, ...props}) => <strong className="text-orange-700 font-bold" {...props} />
+                    }}
+                  >
+                    {currentAnswer}
+                  </ReactMarkdown>
+                </div>
+              </CardContent>
+            </Card>
           )}
         </div>
       </div>
