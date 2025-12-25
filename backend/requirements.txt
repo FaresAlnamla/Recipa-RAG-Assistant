@@ -1,6 +1,9 @@
 fastapi
 uvicorn
 
+# MCP server
+mcp
+
 # LangChain + wrappers
 langchain
 langchain-community
