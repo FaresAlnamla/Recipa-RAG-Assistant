@@ -1,12 +1,7 @@
-from typing import List
-
-import time
 import logging
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
 
 from app.config import get_settings
 from app.rag.retrieval import retrieve_docs, VectorStoreNotReadyError
@@ -27,13 +22,26 @@ app = FastAPI(
 )
 
 app.include_router(agent_router)
+from app.api.agent import router as agent_router
+from app.mcp.server import app as mcp_asgi_app
+
+logger = logging.getLogger("uvicorn")
+
+app = FastAPI(title="RecipaAI API (MCP + Agent)")
+
+# Routers
+app.include_router(agent_router)
+
+# Mount MCP inside the same FastAPI service
+# Effective endpoints:
+#   GET  /mcp/sse
+#   POST /mcp/message
+app.mount("/mcp", mcp_asgi_app)
 
 # CORS (frontend: local + Vercel)
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
     "https://recipaai.vercel.app",
 ]
 
@@ -119,3 +127,6 @@ def ask(req: AskRequest):
 
     except VectorStoreNotReadyError as e:
         raise HTTPException(status_code=500, detail=str(e))
+@app.get("/health")
+def health():
+    return {"status": "ok"}
