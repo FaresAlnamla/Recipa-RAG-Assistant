@@ -11,11 +11,22 @@ from pydantic import BaseModel, Field
 from app.config import get_settings
 from app.rag.retrieval import retrieve_docs, VectorStoreNotReadyError
 from app.rag.llm import stream_answer  # <- only streaming
+from app.api.agent_routes import router as agent_router
+from app.agent.memory import init_memory_db
 
 logger = logging.getLogger("uvicorn")
 
-app = FastAPI(title="RecipaAI API (LangChain, streaming)")
+openapi_tags = [
+    {"name": "Agent", "description": "Agent endpoints (cookbook grounded)"},
+    {"name": "default", "description": "Base RAG endpoints"},
+]
 
+app = FastAPI(
+    title="RecipaAI API (LangChain, streaming)",
+    openapi_tags=openapi_tags,
+)
+
+app.include_router(agent_router)
 
 # CORS (frontend: local + Vercel)
 origins = [
@@ -47,17 +58,16 @@ class AskRequest(BaseModel):
 
 
 def warmup_vectorstore():
-    from app.rag.retrieval import _get_vectorstore  # local import to avoid cycles
+    from app.rag.retrieval import get_vectorstore  # local import to avoid cycles
     try:
-        _get_vectorstore()
+        get_vectorstore()
     except Exception as e:
-        logging.getLogger("uvicorn").warning(
-            "Vectorstore warmup failed: %s", e
-        )
+        logging.getLogger("uvicorn").warning("Vectorstore warmup failed: %s", e)
 
 
 @app.on_event("startup")
 def on_startup():
+    init_memory_db()
     warmup_vectorstore()
 
 
@@ -66,7 +76,7 @@ def health():
     return {"status": "ok"}
 
 
-@app.post("/ask")
+@app.post("/ask", tags=["default"])
 def ask(req: AskRequest):
     """
     Single streaming endpoint.
@@ -90,18 +100,11 @@ def ask(req: AskRequest):
         docs = retrieve_docs(req.question, k=req.k)
         t2 = time.monotonic()
 
-        history_payload = [
-            {"question": h.question, "answer": h.answer}
-            for h in req.history
-        ]
+        history_payload = [{"question": h.question, "answer": h.answer} for h in req.history]
 
         def token_generator():
             t_llm_start = time.monotonic()
-            for chunk in stream_answer(
-                question=req.question,
-                docs=docs,
-                history=history_payload,
-            ):
+            for chunk in stream_answer(question=req.question, docs=docs, history=history_payload):
                 yield chunk
             t_llm_end = time.monotonic()
 
@@ -112,8 +115,6 @@ def ask(req: AskRequest):
                 t_llm_end - t_llm_start,
             )
 
-        # For basic streaming, text/plain is enough.
-        # If you want SSE, change to "text/event-stream" and format events.
         return StreamingResponse(token_generator(), media_type="text/plain")
 
     except VectorStoreNotReadyError as e:

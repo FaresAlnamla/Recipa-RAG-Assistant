@@ -1,18 +1,45 @@
-fastapi
-uvicorn
+# =========================
+# Core & Environment
+# =========================
+python-dotenv>=1.0.1
+pydantic>=2.7
+rich>=13.7
 
-# MCP server
-mcp
+# =========================
+# Backend (API)
+# =========================
+fastapi>=0.110
+uvicorn[standard]>=0.29
 
-# LangChain + wrappers
-langchain
-langchain-community
-langchain-openai
-langchain-text-splitters
-langchain-chroma
+# =========================
+# CrewAI & MCP
+# =========================
+crewai>=0.70
+crewai-tools>=0.12
+mcp>=0.3
 
-# Vector store + utils
-chromadb
-python-dotenv
-pypdf
+# =========================
+# LangChain & LLM Wrappers
+# =========================
+langchain>=0.2
+langchain-community>=0.2
+langchain-openai>=0.1
+langchain-text-splitters>=0.2
+
+# =========================
+# RAG / Vector Stores
+# =========================
+chromadb>=0.5
+langchain-chroma>=0.1
+faiss-cpu>=1.8
+
+# =========================
+# Documents & Parsing
+# =========================
+pypdf>=4.2
+tiktoken>=0.7
+
+# =========================
+# Testing
+# =========================
 pytest==8.2.0

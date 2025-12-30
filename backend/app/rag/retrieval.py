@@ -1,10 +1,12 @@
-from typing import List, Optional
-from pathlib import Path
+from __future__ import annotations
 
-from langchain_openai import OpenAIEmbeddings
+from functools import lru_cache
+from pathlib import Path
+from typing import List, Optional
+
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
-from functools import lru_cache
+from langchain_openai import OpenAIEmbeddings
 
 from app.config import VECTORSTORE_DIR, get_settings
 
@@ -14,6 +16,7 @@ _settings = get_settings()
 class VectorStoreNotReadyError(RuntimeError):
     """Raised when the Chroma vector store has not been built yet."""
     pass
+
 
 def _ensure_vectorstore_ready() -> None:
     """
@@ -27,8 +30,9 @@ def _ensure_vectorstore_ready() -> None:
             "Run `python -m scripts.run_ingest` from the backend/ folder first."
         )
 
+
 @lru_cache
-def _get_vectorstore() -> Chroma:
+def get_vectorstore() -> Chroma:
     """
     Build the Chroma vector store once and cache it in-memory.
     Subsequent requests reuse the same instance.
@@ -47,9 +51,39 @@ def _get_vectorstore() -> Chroma:
     )
 
 
+# -------------------------------------------------------------------
+# Backward-compatible alias (some parts of the app still import this)
+# Keep it until you refactor all imports to use get_vectorstore().
+# -------------------------------------------------------------------
+def _get_vectorstore() -> Chroma:
+    return get_vectorstore()
+
+
+def get_retriever(k: int = 5):
+    """
+    Return a retriever instance from the vectorstore.
+    """
+    vectorstore = get_vectorstore()
+    return vectorstore.as_retriever(search_kwargs={"k": k})
+
+
 def retrieve_docs(question: str, k: int = 5) -> List[Document]:
-    vectorstore = _get_vectorstore()
-    retriever = vectorstore.as_retriever(search_kwargs={"k": k})
+    """
+    Convenience function: build retriever and retrieve docs for a question.
+    Uses `invoke()` to align with LangChain runnable interfaces.
+    """
+    retriever = get_retriever(k=k)
     docs: List[Document] = retriever.invoke(question)
     return docs
 
+
+def retrieve(retriever, question: str, k: Optional[int] = None) -> List[Document]:
+    """
+    Retrieve docs using an already constructed retriever.
+    If k is provided, it overrides retriever search kwargs (best-effort).
+    """
+    if k is not None and hasattr(retriever, "search_kwargs"):
+        retriever.search_kwargs = {**getattr(retriever, "search_kwargs", {}), "k": k}
+
+    docs: List[Document] = retriever.invoke(question)
+    return docs
