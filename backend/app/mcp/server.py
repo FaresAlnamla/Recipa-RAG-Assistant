@@ -1,28 +1,15 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from fastmcp import FastMCP
 
-from mcp.server.fastmcp import FastMCP
-
+# IMPORTANT: import the tool from .tools (NOT from app.mcp.server)
 from .tools import recipe_rag_query
 
-mcp = FastMCP(
-    name="recipaai-mcp",
-    instructions="Exposes RecipaAI retrieval as MCP tools. Return only grounded evidence.",
-)
+mcp = FastMCP("Recipa RAG Tools")
 
-@mcp.tool(
-    name="recipe_rag_query",
-    description="Retrieve grounded cookbook chunks for a query. Returns chunks, citations, latency_ms.",
-)
-def recipe_rag_query_tool(
-    query: str,
-    constraints: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    return recipe_rag_query(query=query, constraints=constraints).model_dump()
+# Expose tool
+mcp.tool()(recipe_rag_query)
 
-# Serve SSE transport (Inspector-friendly)
-# This app exposes:
-#   GET  /sse
-#   POST /message
-app = mcp.sse_app()
+# Streamable HTTP transport
+# This ASGI app will be mounted under /mcp in FastAPI, so path="/"
+app = mcp.http_app(path="/")

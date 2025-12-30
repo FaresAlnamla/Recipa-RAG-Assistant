@@ -1,4 +1,6 @@
-import logging
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,18 +8,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.agent import router as agent_router
 from app.mcp.server import app as mcp_asgi_app
 
-logger = logging.getLogger("uvicorn")
 
-app = FastAPI(title="RecipaAI API (MCP + Agent)")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Mounted apps don't automatically run their lifespans; proxy FastMCP lifespan here.
+    if getattr(mcp_asgi_app, "lifespan", None):
+        async with mcp_asgi_app.lifespan(app):
+            yield
+    else:
+        yield
 
-# Routers
-app.include_router(agent_router)
 
-# Mount MCP inside the same FastAPI service
-# Effective endpoints:
-#   GET  /mcp/sse
-#   POST /mcp/message
-app.mount("/mcp", mcp_asgi_app)
+app = FastAPI(title="Recipa RAG Assistant", version="1.0.0", lifespan=lifespan)
 
 # CORS (frontend: local + Vercel)
 origins = [
@@ -34,6 +36,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(agent_router)
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# MCP served under /mcp
+app.mount("/mcp", mcp_asgi_app)

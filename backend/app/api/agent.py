@@ -1,139 +1,143 @@
 from __future__ import annotations
 
+import inspect
 import json
 import time
 import uuid
-from typing import Any, Dict, Optional, AsyncGenerator, List
+from typing import Any, AsyncGenerator, Dict, Optional
 
+import anyio
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from langchain_core.documents import Document
-
-from app.mcp.server import recipe_rag_query_tool as mcp_recipe_rag_query
+from app.mcp.tools import recipe_rag_query as mcp_recipe_rag_query
 from app.rag.llm import stream_answer
 from app.rag.retrieval import VectorStoreNotReadyError
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
 
+class Constraints(BaseModel):
+    top_k: int = Field(default=5, ge=1, le=20, description="How many chunks to retrieve.")
+
+
 class AgentRunRequest(BaseModel):
     message: str = Field(..., min_length=1)
-    constraints: Optional[Dict[str, Any]] = None
-    session_id: Optional[str] = None
-    history: Optional[List[Dict[str, Any]]] = None
+    constraints: Constraints = Field(default_factory=Constraints)
 
 
-def _sse(event: str, data: Dict[str, Any]) -> str:
-    payload = json.dumps(data, ensure_ascii=False)
-    return f"event: {event}\ndata: {payload}\n\n"
+def _ndjson(event: str, data: Dict[str, Any]) -> str:
+    # Streamable HTTP format: one JSON object per line (NDJSON).
+    return json.dumps({"event": event, "data": data}, ensure_ascii=False) + "\n"
+
+
+async def _call_recipe_tool(query: str, top_k: int) -> Dict[str, Any]:
+    """
+    Call the cookbook RAG tool (sync or async) without blocking the event loop.
+    """
+    def _sync_call() -> Any:
+        return mcp_recipe_rag_query(query=query, constraints={"top_k": top_k})
+
+    res = await anyio.to_thread.run_sync(_sync_call)
+    if inspect.isawaitable(res):
+        res = await res
+    if not isinstance(res, dict):
+        raise TypeError(f"recipe_rag_query_tool returned {type(res).__name__}, expected dict")
+    return res
 
 
 @router.post("/run")
-def agent_run(req: AgentRunRequest) -> StreamingResponse:
-    run_id = str(uuid.uuid4())
-    t0 = time.monotonic()
+async def run_agent(req: AgentRunRequest):
+    """
+    Stream agent events as NDJSON (Streamable HTTP).
+    """
 
     async def gen() -> AsyncGenerator[str, None]:
+        run_id = str(uuid.uuid4())
+        t0 = time.monotonic()
+
         try:
-            yield _sse("run.started", {"run_id": run_id, "ts": time.time()})
+            yield _ndjson("run.started", {"run_id": run_id, "ts": time.time()})
+            yield _ndjson(
+                "plan.created",
+                {
+                    "run_id": run_id,
+                    "plan": "1) Retrieve grounded cookbook evidence. 2) Answer using only that evidence with citations.",
+                },
+            )
 
-            plan = "1) Retrieve grounded cookbook evidence. 2) Answer using only that evidence with citations."
-            yield _sse("plan.created", {"run_id": run_id, "plan": plan})
+            top_k = int(req.constraints.top_k)
 
-            constraints = req.constraints or {}
-
-            yield _sse(
+            yield _ndjson(
                 "tool.call.started",
                 {
                     "run_id": run_id,
                     "tool": "recipe_rag_query",
                     "query": req.message,
-                    "constraints": constraints,
+                    "constraints": {"top_k": top_k},
                 },
             )
 
-            t_tool = time.monotonic()
-            tool_res = mcp_recipe_rag_query(query=req.message, constraints=constraints)  # dict
-            tool_latency_ms = int((time.monotonic() - t_tool) * 1000)
-
+            tool_res = await _call_recipe_tool(req.message, top_k)
             chunks = tool_res.get("chunks", []) or []
             citations = tool_res.get("citations", []) or []
 
-            # Always emit tool.call.finished (even when chunks are empty)
-            yield _sse(
+            tool_latency_s: Optional[float] = None
+            if tool_res.get("latency_ms") is not None:
+                tool_latency_s = round(float(tool_res["latency_ms"]) / 1000.0, 3)
+
+            yield _ndjson(
                 "tool.call.finished",
                 {
                     "run_id": run_id,
                     "tool": "recipe_rag_query",
-                    "latency_ms": tool_latency_ms,
+                    "latency_s": tool_latency_s,
                     "chunks_count": len(chunks),
                 },
             )
 
-            # No-evidence fast path: skip LLM entirely
-            if not chunks:
-                msg = "I can’t find that in this cookbook."
-                yield _sse("answer.token", {"run_id": run_id, "token": msg})
-                yield _sse(
+            # (a) no-evidence guardrail (fast path: skip LLM)
+            if len(chunks) == 0:
+                answer = "I can’t find that in this cookbook."
+                yield _ndjson(
                     "answer.generated",
                     {
                         "run_id": run_id,
-                        "answer": msg,
+                        "answer": answer,
                         "citations": [],
-                        "llm_latency_ms": 0,
                         "reason": "no_evidence",
                     },
                 )
-                total_ms = int((time.monotonic() - t0) * 1000)
-                yield _sse("run.finished", {"run_id": run_id, "total_latency_ms": total_ms})
+                total_s = round(time.monotonic() - t0, 3)
+                yield _ndjson("run.finished", {"run_id": run_id, "total_latency_s": total_s})
                 return
 
-            # Build docs for LLM prompt
-            docs: List[Document] = [
-                Document(
-                    page_content=(ch.get("text") or ""),
-                    metadata={
-                        "source": ch.get("source"),
-                        "page": ch.get("page"),
-                        "chunk_id": ch.get("chunk_id"),
-                    },
-                )
-                for ch in chunks
-            ]
+            # LLM streaming (tokens)
+            answer_text = ""
+            llm_t0 = time.monotonic()
+            async for token in stream_answer(req.message, chunks, history=[]):
+                if token:
+                    answer_text += token
+                    yield _ndjson("answer.token", {"run_id": run_id, "token": token})
 
-            # Stream tokens
-            answer_buf: list[str] = []
-            t_llm = time.monotonic()
-
-            for token in stream_answer(req.message, docs, history=req.history):
-                answer_buf.append(token)
-                yield _sse("answer.token", {"run_id": run_id, "token": token})
-
-            answer_text = "".join(answer_buf)
-            llm_latency_ms = int((time.monotonic() - t_llm) * 1000)
-
-            yield _sse(
+            llm_latency_s = round(time.monotonic() - llm_t0, 3)
+            yield _ndjson(
                 "answer.generated",
                 {
                     "run_id": run_id,
-                    "answer": answer_text,
+                    "answer": answer_text.strip(),
                     "citations": citations,
-                    "llm_latency_ms": llm_latency_ms,
+                    "llm_latency_s": llm_latency_s,
                 },
             )
 
-            total_ms = int((time.monotonic() - t0) * 1000)
-            yield _sse("run.finished", {"run_id": run_id, "total_latency_ms": total_ms})
+            total_s = round(time.monotonic() - t0, 3)
+            yield _ndjson("run.finished", {"run_id": run_id, "total_latency_s": total_s})
 
         except VectorStoreNotReadyError as e:
-            yield _sse("run.error", {"run_id": run_id, "error": str(e)})
+            yield _ndjson("run.error", {"run_id": run_id, "error": str(e)})
         except Exception as e:
-            yield _sse("run.error", {"run_id": run_id, "error": f"{type(e).__name__}: {e}"})
+            yield _ndjson("run.error", {"run_id": run_id, "error": f"{type(e).__name__}: {e}"})
 
-    return StreamingResponse(
-        gen(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return StreamingResponse(gen(), media_type="application/x-ndjson; charset=utf-8")

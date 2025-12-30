@@ -93,7 +93,7 @@ def recipe_rag_query(
         # Retrieve more than needed if we plan to post-filter.
         # Simple heuristic: retrieve 2x top_k to avoid filtering down to nothing.
         raw_k = min(max(c.top_k * 2, c.top_k), 20)
-        docs = retrieve_docs(query, k=raw_k)  # your retrieval entrypoint :contentReference[oaicite:4]{index=4}
+        docs = retrieve_docs(query, top_k=raw_k)  # your retrieval entrypoint :contentReference[oaicite:4]{index=4}
     except VectorStoreNotReadyError:
         # If vectorstore missing, do NOT fabricate evidence.
         latency_ms = int((time.monotonic() - t0) * 1000)
