@@ -14,8 +14,9 @@ COOKBOOK_PDF = SOURCE_DIR / "COOKBOOK.pdf"
 class Settings(BaseModel):
     openai_api_key: str | None = None
     embedding_model: str = "text-embedding-3-small"
-    chat_model: str = "gpt-5-nano"
+    chat_model: str = "gpt-4o-mini"
     chroma_collection: str = "cookbook-recipes"
+    vectorstore_dir: str | Path = VECTORSTORE_DIR
 
 
 @lru_cache
@@ -27,6 +28,3 @@ def get_settings() -> Settings:
     return Settings(
         openai_api_key=os.getenv("OPENAI_API_KEY"),
     )
-
-# ✅ add this line
-settings = get_settings()

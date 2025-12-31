@@ -20,18 +20,18 @@ export const SUGGESTED_QUESTIONS = [
 export const ARCHITECTURE_STEPS = [
   {
     icon: BookOpen,
-    title: "Ingestion Engine",
-    text: "Cookbook PDF is parsed and chunked into semantic segments for deep context understanding.",
+    title: "PDF Ingestion",
+    text: "Cookbook PDFs are parsed, chunked semantically, and converted to dense vector embeddings for efficient retrieval.",
   },
   {
     icon: Database,
-    title: "Vector Retrieval",
-    text: "High-dimensional vector search identifies contextually relevant segments from the knowledge base.",
+    title: "Smart Retrieval",
+    text: "User queries are matched against stored embeddings to find contextually relevant recipe segments with multi-book support.",
   },
   {
     icon: Sparkles,
-    title: "Generative AI",
-    text: "LLM synthesizes retrieved data into structured, actionable, and formatted recipes.",
+    title: "Intelligent Response",
+    text: "LLM synthesizes answers using only retrieved context. Streaming enables real-time token delivery. Sources shown only when found.",
   },
 ];
 

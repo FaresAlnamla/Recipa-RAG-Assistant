@@ -119,11 +119,39 @@ def _extract_recipe_subject(last_q: str) -> Optional[str]:
     if not last_q:
         return None
     s = last_q.lower()
+    
+    # Try pattern: "bake/cook/make <recipe>"
     m = re.search(r"\b(?:bake|cook|make)\s+(.*?)(?:\?|$)", s)
     if m:
         subj = m.group(1).strip(" .")
         subj = " ".join(subj.split()[:6])
         return subj
+    
+    # Try pattern: "What is <recipe>" or similar (handles "What is peanut butter cookies?")
+    m = re.search(r"\b(?:what is|what are|tell me about|is it a|are these)\s+(.*?)(?:\?|$)", s)
+    if m:
+        subj = m.group(1).strip(" .")
+        subj = " ".join(subj.split()[:6])
+        return subj
+    
+    # Fallback: take all words except common prefixes
+    words = s.split()
+    if len(words) > 2:
+        # skip common question words at start
+        start_skip = ["what", "how", "when", "where", "why", "is", "are", "do", "does", "did", "can", "could", "should"]
+        idx = 0
+        for word in words:
+            word_clean = word.strip("?,.!;:")
+            if word_clean not in start_skip:
+                break
+            idx += 1
+        
+        remaining = " ".join(words[idx:])
+        remaining = remaining.strip("?,.!;: ")
+        if remaining:
+            remaining = " ".join(remaining.split()[:6])
+            return remaining
+    
     return None
 
 
@@ -136,7 +164,18 @@ def _rewrite_followup(user_query: str, session_id: str) -> Tuple[str, Optional[s
     if not last_q:
         return q, None
 
-    subject = _extract_recipe_subject(last_q) or last_q
+    # Try to get active recipe from session cache first
+    active_recipe = _get_active_recipe(session_id)
+    
+    # Extract subject from previous question or use active recipe
+    subject = None
+    if active_recipe:
+        subject = active_recipe
+    else:
+        subject = _extract_recipe_subject(last_q)
+    
+    if not subject:
+        subject = last_q  # Fallback to full previous question
 
     q_low = q.lower()
     if "temp" in q_low or "temperature" in q_low or "degrees" in q_low:
@@ -183,6 +222,23 @@ def _format_context(chunks: List[RetrievedChunk]) -> str:
     return "\n".join(lines).strip()
 
 
+def _extract_book_name_from_path(path: Optional[str]) -> Optional[str]:
+    """
+    Extract friendly book name from file path.
+    E.g., "C:\\path\\to\\cookbook.pdf" -> "cookbook"
+    Handles multiple books by extracting filename without extension.
+    """
+    if not path:
+        return None
+    try:
+        import os
+        filename = os.path.basename(path)
+        book_name = os.path.splitext(filename)[0]
+        return book_name.replace("_", " ").replace("-", " ").title() if book_name else None
+    except Exception:
+        return None
+
+
 def _build_sources(chunks: List[RetrievedChunk], limit: int = 2) -> List[Dict[str, Any]]:
     seen = set()
     sources: List[Dict[str, Any]] = []
@@ -193,11 +249,15 @@ def _build_sources(chunks: List[RetrievedChunk], limit: int = 2) -> List[Dict[st
             continue
         seen.add(key)
 
+        # ✅ Extract book name from source path for display
+        book_name = _extract_book_name_from_path(md.get("source"))
+
         sources.append(
             {
                 "page_label": md.get("page_label"),
                 "page": md.get("page"),
                 "source": md.get("source"),
+                "book_name": book_name,  # ✅ NEW: Friendly book name
                 "snippet": ((ch.content or "")[:180]).replace("\n", " ").strip(),
             }
         )
@@ -740,9 +800,23 @@ If the answer is not present, say you cannot find it in the cookbook.
 
     evaluation = evaluate_support(answer, context)
 
+    # ✅ Don't show sources if answer indicates "cannot find" or answer is very short/negative
+    sources_to_show = sources
+    if any(phrase in answer.lower() for phrase in [
+        "cannot find",
+        "i cannot find",
+        "couldn't find",
+        "i couldn't find",
+        "not in the cookbook",
+        "not present in",
+        "not available",
+        "not clear",
+    ]):
+        sources_to_show = []
+
     return {
         "answer": answer,
-        "sources": sources,
+        "sources": sources_to_show,
         "evaluation": evaluation,
         "filtered_out": filtered_out,
     }
@@ -931,10 +1005,25 @@ If the answer is not present, say you cannot find it in the cookbook.
 
     evaluation = evaluate_support(final_answer, context)
 
+    # ✅ Don't show sources if answer indicates "cannot find" or answer is very short/negative
+    sources_to_show = sources
+    if any(phrase in final_answer.lower() for phrase in [
+        "cannot find",
+        "i cannot find",
+        "couldn't find",
+        "i couldn't find",
+        "not in the cookbook",
+        "not present in",
+        "not available",
+        "not clear",
+    ]):
+        sources_to_show = []
+
     yield {
         "type": "done",
         "answer": final_answer,
-        "sources": sources,
+        "sources": sources_to_show,
         "evaluation": evaluation,
         "filtered_out": filtered_out,
     }
+

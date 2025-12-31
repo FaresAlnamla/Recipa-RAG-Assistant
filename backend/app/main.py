@@ -1,35 +1,40 @@
 from __future__ import annotations
 
+import logging
+import time
 from contextlib import asynccontextmanager
+from typing import List
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 from app.config import get_settings
 from app.rag.retrieval import retrieve_docs, VectorStoreNotReadyError
-from app.rag.llm import stream_answer  # <- only streaming
+from app.rag.llm import stream_answer
 from app.api.agent_routes import router as agent_router
 from app.agent.memory import init_memory_db
+from app.mcp.server import app as mcp_asgi_app
 
 logger = logging.getLogger("uvicorn")
 
-openapi_tags = [
-    {"name": "Agent", "description": "Agent endpoints (cookbook grounded)"},
-    {"name": "default", "description": "Base RAG endpoints"},
-]
 
-app = FastAPI(
-    title="RecipaAI API (LangChain, streaming)",
-    openapi_tags=openapi_tags,
-)
-
-app.include_router(agent_router)
-from app.api.agent import router as agent_router
-from app.mcp.server import app as mcp_asgi_app
+def warmup_vectorstore():
+    """Initialize vectorstore on startup."""
+    from app.rag.retrieval import get_vectorstore  # local import to avoid cycles
+    try:
+        get_vectorstore()
+    except Exception as e:
+        logging.getLogger("uvicorn").warning("Vectorstore warmup failed: %s", e)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup
+    init_memory_db()
+    warmup_vectorstore()
+    
     # Mounted apps don't automatically run their lifespans; proxy FastMCP lifespan here.
     if getattr(mcp_asgi_app, "lifespan", None):
         async with mcp_asgi_app.lifespan(app):
@@ -38,7 +43,15 @@ async def lifespan(app: FastAPI):
         yield
 
 
-app = FastAPI(title="Recipa RAG Assistant", version="1.0.0", lifespan=lifespan)
+app = FastAPI(
+    title="Recipa RAG Assistant",
+    version="1.0.0",
+    lifespan=lifespan,
+    openapi_tags=[
+        {"name": "Agent", "description": "Agent endpoints (cookbook grounded)"},
+        {"name": "default", "description": "Base RAG endpoints"},
+    ],
+)
 
 # CORS (frontend: local + Vercel)
 origins = [
@@ -59,6 +72,7 @@ app.include_router(agent_router)
 
 
 
+
 class HistoryItem(BaseModel):
     question: str
     answer: str
@@ -68,20 +82,6 @@ class AskRequest(BaseModel):
     question: str
     k: int = 3
     history: List[HistoryItem] = Field(default_factory=list)
-
-
-def warmup_vectorstore():
-    from app.rag.retrieval import get_vectorstore  # local import to avoid cycles
-    try:
-        get_vectorstore()
-    except Exception as e:
-        logging.getLogger("uvicorn").warning("Vectorstore warmup failed: %s", e)
-
-
-@app.on_event("startup")
-def on_startup():
-    init_memory_db()
-    warmup_vectorstore()
 
 
 @app.get("/health")
@@ -132,9 +132,6 @@ def ask(req: AskRequest):
 
     except VectorStoreNotReadyError as e:
         raise HTTPException(status_code=500, detail=str(e))
-@app.get("/health")
-def health():
-    return {"status": "ok"}
 
 
 # MCP served under /mcp
