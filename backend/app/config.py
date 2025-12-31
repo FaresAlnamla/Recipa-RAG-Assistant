@@ -27,3 +27,6 @@ def get_settings() -> Settings:
     return Settings(
         openai_api_key=os.getenv("OPENAI_API_KEY"),
     )
+
+# ✅ add this line
+settings = get_settings()

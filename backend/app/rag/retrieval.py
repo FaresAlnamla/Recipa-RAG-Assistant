@@ -9,67 +9,45 @@ from langchain_core.documents import Document
 import os
 import re
 from functools import lru_cache
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
-from langchain_chroma import Chroma
 from langchain_core.documents import Document
-from langchain_core.embeddings import Embeddings
+from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 
-from app.config import VECTORSTORE_DIR, get_settings
-
-_settings = get_settings()
+from app.config import settings
 
 
 class VectorStoreNotReadyError(RuntimeError):
-    """Raised when the Chroma vector store has not been built yet."""
+    pass
 
 
+class CachedOpenAIEmbeddings(OpenAIEmbeddings):
 def _ensure_vectorstore_ready() -> None:
 # -----------------------------
 # (b) Query-embedding cache
 # -----------------------------
 class CachedEmbeddings(Embeddings):
     """
-    Wraps an embeddings provider and caches embed_query() results.
-    This avoids paying the embeddings API call repeatedly for identical queries.
+    In-process LRU cache for query embeddings.
+    - Speeds up repeated queries (same text).
+    - Cache is per-process (resets on restart).
     """
 
-    def __init__(self, base: Embeddings, maxsize: int = 1024):
-        self._base = base
-
-        @lru_cache(maxsize=maxsize)
-        def _cached_embed_query(text: str) -> Tuple[float, ...]:
-            vec = self._base.embed_query(text)
-            return tuple(vec)
-
-        self._cached_embed_query = _cached_embed_query
+    @lru_cache(maxsize=2048)
+    def _cached_query(self, text: str) -> Tuple[float, ...]:
+        return tuple(super().embed_query(text))
 
     def embed_query(self, text: str) -> List[float]:
-        key = (text or "").strip()
-        return list(self._cached_embed_query(key))
-
-    def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        # Ingestion uses embed_documents; caching it is optional.
-        return self._base.embed_documents(texts)
+        return list(self._cached_query(text))
 
 
-_QUERY_CACHE_SIZE = int(os.getenv("QUERY_EMBED_CACHE_SIZE", "2048"))
-
-_embeddings = CachedEmbeddings(
-    OpenAIEmbeddings(
-        api_key=_settings.openai_api_key,
-        model=_settings.embedding_model,
-    ),
-    maxsize=_QUERY_CACHE_SIZE,
-)
-
-
-# -----------------------------
-# Vectorstore loader
-# -----------------------------
 @lru_cache(maxsize=1)
 def _get_vectorstore() -> Chroma:
+    if not settings.CHROMA_PERSIST_DIR:
+        raise VectorStoreNotReadyError("CHROMA_PERSIST_DIR is not set.")
+    embeddings = CachedOpenAIEmbeddings(openai_api_key=settings.OPENAI_API_KEY)
+    return Chroma(persist_directory=settings.CHROMA_PERSIST_DIR, embedding_function=embeddings)
     # Basic “is it built?” check
     if not VECTORSTORE_DIR.exists():
         raise VectorStoreNotReadyError(
@@ -208,8 +186,8 @@ def retrieve_docs(
     else:
         docs = vectorstore.similarity_search(question, k=k)
 
-    # 2) Keyword guardrail (high impact for “pancakes” case)
-    if not _keyword_guardrail(question, docs):
-        return []
 
-    return docs
+def retrieve_docs(query: str, *, top_k: int = 5) -> List[Document]:
+    vs = _get_vectorstore()
+    retriever = vs.as_retriever(search_kwargs={"k": int(top_k)})
+    return retriever.get_relevant_documents(query)

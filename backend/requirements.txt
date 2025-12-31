@@ -11,6 +11,13 @@ rich>=13.7
 fastapi>=0.110
 uvicorn[standard]>=0.29
 
+# LangChain + wrappers
+langchain
+langchain-community
+langchain-openai
+langchain-text-splitters
+langchain-chroma
+langchain-core
 # =========================
 # CrewAI & MCP
 # =========================
