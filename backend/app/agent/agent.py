@@ -246,46 +246,84 @@ def _format_context(chunks: List[RetrievedChunk]) -> str:
 def _extract_book_name_from_path(path: Optional[str]) -> Optional[str]:
     """
     Extract friendly book name from file path.
-    E.g., "C:\\path\\to\\cookbook.pdf" -> "cookbook"
+    E.g., "C:\\path\\to\\cookbook.pdf" or "C:\\Users\\Hp\\...\\Cookbook - Page 2" -> "THE LOW-COST COOKBOOK"
     Handles multiple books by extracting filename without extension.
     """
     if not path:
         return None
     try:
         import os
-        filename = os.path.basename(path)
-        book_name = os.path.splitext(filename)[0]
-        # Special-case mapping for known cookbook filename patterns to exact display
+        import re
+        
+        # Normalize path separators
+        normalized = path.replace("\\", "/")
+        
+        # Handle metadata that includes "Cookbook - Page X" format
+        # Extract just the book name part before " - Page"
+        if " - Page " in normalized:
+            parts = normalized.split(" - Page ")
+            filename = parts[0].split("/")[-1]
+        else:
+            filename = os.path.basename(normalized)
+        
+        # Remove extension
+        book_name = os.path.splitext(filename)[0].strip()
+        
+        # Normalize the name
         key = (book_name or "").lower()
-        if "low" in key and "cost" in key:
-            # User requested full title for The Low-Cost Cookbook
+        
+        # Handle various cookbook filename patterns
+        if any(x in key for x in ["cookbook", "low cost", "low-cost"]):
             return "THE LOW-COST COOKBOOK"
-
-        # Default: replace underscores/dashes with spaces and title-case
-        return book_name.replace("_", " ").replace("-", " ").strip().title() if book_name else None
+        
+        # For other books, clean up and return
+        if book_name:
+            # Replace common separators with spaces
+            cleaned = re.sub(r"[_-]", " ", book_name)
+            # Title case and clean whitespace
+            return cleaned.title().strip()
+        
+        return None
     except Exception:
         return None
 
 
 def _build_sources(chunks: List[RetrievedChunk], limit: int = 2) -> List[Dict[str, Any]]:
+    """
+    Build sources from retrieved chunks.
+    Ensures book_name is always extracted cleanly (handles old file paths from production).
+    """
     seen = set()
     sources: List[Dict[str, Any]] = []
     for ch in chunks:
         md = ch.metadata or {}
-        key = (md.get("source"), md.get("page_label") or md.get("page"))
+        page = md.get("page_label") or md.get("page")
+        source_path = md.get("source")
+        
+        # Create dedup key
+        key = (source_path, page)
         if key in seen:
             continue
         seen.add(key)
 
-        # ✅ Extract book name from source path for display
-        book_name = _extract_book_name_from_path(md.get("source"))
+        # ✅ Extract and clean book name from source path
+        # This handles both clean paths (local) and full Windows paths (deployed)
+        book_name = _extract_book_name_from_path(source_path)
+        
+        # Fallback: if extraction failed, try to extract from page_label if it has book info
+        if not book_name and page:
+            book_name = _extract_book_name_from_path(str(page))
+        
+        # Default fallback
+        if not book_name:
+            book_name = "Cookbook"
 
         sources.append(
             {
-                "page_label": md.get("page_label"),
-                "page": md.get("page"),
-                "source": md.get("source"),
-                "book_name": book_name,  # ✅ NEW: Friendly book name
+                "page_label": page,
+                "page": page,
+                "source": book_name,  # ✅ CHANGED: Return clean book_name instead of full path
+                "book_name": book_name,
                 "snippet": ((ch.content or "")[:180]).replace("\n", " ").strip(),
             }
         )
