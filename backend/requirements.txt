@@ -1,52 +1,31 @@
 # =========================
 # Core & Environment
 # =========================
-python-dotenv>=1.0.1
-pydantic>=2.7
-rich>=13.7
+python-dotenv
+pydantic
 
 # =========================
 # Backend (API)
 # =========================
-fastapi>=0.110
-uvicorn[standard]>=0.29
+fastapi
+uvicorn
 
-# LangChain + wrappers
-langchain
+# =========================
+# LangChain & LLM
+# =========================
+LangChain
+langchain-Core
 langchain-community
 langchain-openai
 langchain-text-splitters
 langchain-chroma
-langchain-core
-# =========================
-# CrewAI & MCP
-# =========================
-crewai>=0.70
-crewai-tools>=0.12
-mcp>=0.3
-
-# =========================
-# LangChain & LLM Wrappers
-# =========================
-langchain>=0.2
-langchain-community>=0.2
-langchain-openai>=0.1
-langchain-text-splitters>=0.2
 
 # =========================
 # RAG / Vector Stores
 # =========================
-chromadb>=0.5
-langchain-chroma>=0.1
-faiss-cpu>=1.8
+chromadb
 
 # =========================
-# Documents & Parsing
+# MCP Server
 # =========================
-pypdf>=4.2
-tiktoken>=0.7
-
-# =========================
-# Testing
-# =========================
-pytest==8.2.0
+fastmcp
