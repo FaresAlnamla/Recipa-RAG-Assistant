@@ -12,9 +12,9 @@ import { useScrollSpy } from "@/hooks/useScrollSpy"; // NEW HOOK
 
 export default function Home() {
   const [scrolled, setScrolled] = useState(false);
-  
+
   // Use the new hook!
-  const activeSection = useScrollSpy(NAV_SECTIONS.map(s => s.id));
+  const activeSection = useScrollSpy(NAV_SECTIONS.map((s) => s.id));
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
@@ -27,14 +27,19 @@ export default function Home() {
     if (element) {
       const headerOffset = 80;
       const elementPosition = element.getBoundingClientRect().top;
-      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+      const offsetPosition =
+        elementPosition + window.pageYOffset - headerOffset;
       window.scrollTo({ top: offsetPosition, behavior: "smooth" });
     }
   }, []);
 
   return (
     <div className="min-h-screen bg-white font-sans text-slate-900 selection:bg-orange-100 selection:text-orange-900 dark:bg-slate-950 dark:text-white">
-      <Navbar scrolled={scrolled} activeSection={activeSection} onScrollTo={scrollToSection} />
+      <Navbar
+        scrolled={scrolled}
+        activeSection={activeSection}
+        onScrollTo={scrollToSection}
+      />
       <main>
         <Hero onScrollTo={scrollToSection} />
         <Architecture />

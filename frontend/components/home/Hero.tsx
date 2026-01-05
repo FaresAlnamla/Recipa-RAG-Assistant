@@ -12,10 +12,14 @@ export default function Hero({ onScrollTo }: HeroProps) {
       id="hero"
       role="region"
       aria-labelledby="hero-heading"
-      // Use h-screen with min-h-dvh fallback for better mobile app compatibility
-      // h-screen works better on PWAs and native mobile contexts
-      className="relative w-full h-screen min-h-dvh flex items-center justify-center bg-cover bg-center px-4"
-      style={{ backgroundImage: "url('/hero-bg.jpg')" }}
+      // Optimized for performance: h-screen with min-h-dvh fallback for mobile/PWA
+      className="relative w-full h-screen min-h-dvh flex items-center justify-center bg-cover bg-center px-4 bg-gray-900"
+      style={{
+        backgroundImage: "url('/hero-bg.webp')",
+        backgroundAttachment: "fixed",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
     >
       {/* Dark Overlay */}
       <div className="absolute inset-0 bg-black/50 backdrop-blur-[1px]" />
@@ -43,9 +47,8 @@ export default function Hero({ onScrollTo }: HeroProps) {
 
         {/* Subtitle */}
         <p className="text-base sm:text-lg md:text-xl lg:text-3xl text-gray-100 mb-8 sm:mb-12 max-w-4xl mx-auto leading-relaxed font-medium drop-shadow-lg animate-in fade-in slide-in-from-bottom-8 duration-1000 px-2 sm:px-4">
-          An intelligent agent system for exploring{" "}
-          <strong className="text-white">The Low-Cost Cookbook</strong> with
-          precision, memory, and multi-turn understanding.
+          Explore <strong className="text-white">The Low-Cost Cookbook</strong>{" "}
+          with AI-powered memory and intelligent multi-turn conversations.
         </p>
 
         {/* Action Buttons */}

@@ -173,8 +173,8 @@ export default function QAEngine() {
   return (
     <section
       id="qa-section"
-      // Background set to white
-      className="min-h-screen flex flex-col justify-center py-20 bg-white border-b border-gray-200 transition-colors relative overflow-hidden"
+      // Background set to light grey for section separation
+      className="min-h-screen flex flex-col justify-center py-20 bg-gray-50 border-b border-gray-200 transition-colors relative overflow-hidden"
     >
       {/* Background Pattern */}
       <div

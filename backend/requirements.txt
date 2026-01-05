@@ -1,31 +1,31 @@
 # =========================
 # Core & Environment
 # =========================
-python-dotenv
-pydantic
+python-dotenv>=1.0.1
+pydantic>=2.7
 
 # =========================
 # Backend (API)
 # =========================
-fastapi
-uvicorn
+fastapi>=0.110
+uvicorn[standard]>=0.29
 
 # =========================
 # LangChain & LLM
 # =========================
-LangChain
-langchain-Core
-langchain-community
-langchain-openai
-langchain-text-splitters
-langchain-chroma
+langchain>=0.2
+langchain-core>=0.2
+langchain-community>=0.2
+langchain-openai>=0.1
+langchain-text-splitters>=0.2
+langchain-chroma>=0.1
 
 # =========================
 # RAG / Vector Stores
 # =========================
-chromadb
+chromadb>=0.5
 
 # =========================
 # MCP Server
 # =========================
-fastmcp
+fastmcp>=0.2

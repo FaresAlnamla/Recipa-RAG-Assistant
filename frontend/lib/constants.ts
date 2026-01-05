@@ -21,9 +21,9 @@ export const NAV_SECTIONS = [
 ];
 
 export const SUGGESTED_QUESTIONS = [
-  "What budget-friendly recipes are in the cookbook?",
-  "How do I make a simple pasta dish?",
-  "What ingredients are commonly used for cheap meals?",
+  "How do I make chocolate mug cake?",
+  "What is mini egg muffins ingredients?",
+  "How to make loaded sweet potato?",
 ];
 
 export const ARCHITECTURE_STEPS = [
@@ -62,24 +62,24 @@ export const ARCHITECTURE_STEPS = [
 export const TEAM_MEMBERS = [
   {
     name: "Walid Alsafadi",
-    role: "RAG System & Multi-Agent Architecture",
-    image: "/walid.jpg",
+    role: "RAG & Backend Lead",
+    image: "/walid.webp",
     linkedin: "https://www.linkedin.com/in/walidalsafadi",
     github: "https://github.com/walidalsafadi",
     email: "mailto:walid.k.alsafadi@gmail.com",
   },
   {
     name: "Fares Alnamla",
-    role: "AI Agent System & Router",
-    image: "/fares.jpg",
+    role: "AI Agent Engineer",
+    image: "/fares.webp",
     linkedin: "https://www.linkedin.com/in/faresalnamla",
     github: "https://github.com/FaresAlnamla",
     email: "mailto:faresalnam@gmail.com",
   },
   {
     name: "Ahmed Alyazuri",
-    role: "Frontend Developer & UI/UX",
-    image: "/ahmed.jpg",
+    role: "Frontend Developer",
+    image: "/ahmed.webp",
     linkedin: "https://www.linkedin.com/in/ahmed-alyazuri",
     github: "https://github.com/AhmedAl-Yazuri",
     email: "mailto:ahmedalyazuri@gmail.com",
