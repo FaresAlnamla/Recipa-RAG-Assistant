@@ -53,12 +53,19 @@ app = FastAPI(
     ],
 )
 
-# CORS (frontend: local + Vercel)
+# CORS: Dynamic configuration based on environment
+settings = get_settings()
+
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    settings.frontend_url,
     "https://recipaai.vercel.app",
 ]
+
+# Remove duplicates while preserving order
+seen = set()
+origins = [x for x in origins if not (x in seen or seen.add(x))]
 
 app.add_middleware(
     CORSMiddleware,
@@ -136,3 +143,19 @@ def ask(req: AskRequest):
 
 # MCP served under /mcp
 app.mount("/mcp", mcp_asgi_app)
+
+
+# Allow Render and other platforms to bind to custom port
+if __name__ == "__main__":
+    import os
+    import uvicorn
+    
+    port = int(os.getenv("PORT", "8000"))
+    host = "0.0.0.0"  # Required for Render to bind correctly
+    
+    uvicorn.run(
+        app,
+        host=host,
+        port=port,
+        log_level="info",
+    )

@@ -1,8 +1,17 @@
 // lib/constants.ts
-import { BookOpen, Database, Sparkles } from "lucide-react";
+import {
+  BookOpen,
+  Database,
+  Sparkles,
+  Navigation,
+  CheckCircle,
+  History,
+} from "lucide-react";
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-export const GITHUB_URL = "https://github.com/WalidAlsafadi/recipa-rag-assistant";
+export const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export const GITHUB_URL =
+  "https://github.com/WalidAlsafadi/recipa-rag-assistant";
 
 export const NAV_SECTIONS = [
   { name: "Home", id: "hero" },
@@ -12,33 +21,48 @@ export const NAV_SECTIONS = [
 ];
 
 export const SUGGESTED_QUESTIONS = [
-  "What is a cheap meal for a family of 4?",
-  "How do I make lentils taste good?",
-  "Give me a recipe using only eggs and flour.",
+  "What budget-friendly recipes are in the cookbook?",
+  "How do I make a simple pasta dish?",
+  "What ingredients are commonly used for cheap meals?",
 ];
 
 export const ARCHITECTURE_STEPS = [
   {
-    icon: BookOpen,
-    title: "PDF Ingestion",
-    text: "Cookbook PDFs are parsed, chunked semantically, and converted to dense vector embeddings for efficient retrieval.",
+    icon: Navigation,
+    title: "Router",
+    text: "Determines if the question is cookbook-related, a catalog request, or out-of-scope. Handles follow-ups intelligently.",
   },
   {
     icon: Database,
-    title: "Smart Retrieval",
-    text: "User queries are matched against stored embeddings to find contextually relevant recipe segments with multi-book support.",
+    title: "Retrieval",
+    text: "Searches the cookbook using semantic vector search (Chroma). Returns relevant recipe chunks with metadata (source, page).",
   },
   {
     icon: Sparkles,
-    title: "Intelligent Response",
-    text: "LLM synthesizes answers using only retrieved context. Streaming enables real-time token delivery. Sources shown only when found.",
+    title: "LLM",
+    text: "Synthesizes an answer using ONLY the retrieved cookbook context. Supports streaming tokens for real-time UX.",
+  },
+  {
+    icon: CheckCircle,
+    title: "Evaluation",
+    text: "Verifies the answer is supported by retrieved chunks. Produces confidence scores and facts-checked metadata.",
+  },
+  {
+    icon: History,
+    title: "Memory",
+    text: "Persists chat messages and recipe context in SQLite. Enables follow-ups and maintains session history.",
+  },
+  {
+    icon: BookOpen,
+    title: "Response",
+    text: "Returns the final answer with sources (full book name + page), evaluation metrics, and structured metadata.",
   },
 ];
 
 export const TEAM_MEMBERS = [
   {
     name: "Walid Alsafadi",
-    role: "AI Backend Engineer",
+    role: "RAG System & Multi-Agent Architecture",
     image: "/walid.jpg",
     linkedin: "https://www.linkedin.com/in/walidalsafadi",
     github: "https://github.com/walidalsafadi",
@@ -46,7 +70,7 @@ export const TEAM_MEMBERS = [
   },
   {
     name: "Fares Alnamla",
-    role: "Web Deployment",
+    role: "AI Agent System & Router",
     image: "/fares.jpg",
     linkedin: "https://www.linkedin.com/in/faresalnamla",
     github: "https://github.com/FaresAlnamla",
@@ -54,7 +78,7 @@ export const TEAM_MEMBERS = [
   },
   {
     name: "Ahmed Alyazuri",
-    role: "Frontend Developer",
+    role: "Frontend Developer & UI/UX",
     image: "/ahmed.jpg",
     linkedin: "https://www.linkedin.com/in/ahmed-alyazuri",
     github: "https://github.com/AhmedAl-Yazuri",

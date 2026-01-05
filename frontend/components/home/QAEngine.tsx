@@ -53,6 +53,7 @@ export default function QAEngine() {
     }
   }, []);
 
+  // Sync history to localStorage on change
   useEffect(() => {
     localStorage.setItem("recipa-history", JSON.stringify(history));
   }, [history]);
@@ -237,6 +238,31 @@ export default function QAEngine() {
                   ))}
                 </div>
 
+                {/* Show previous conversation if exists */}
+                {history.length > 0 && (
+                  <div className="border-t border-gray-200 pt-6">
+                    <h3 className="text-sm font-bold text-gray-700 mb-3">
+                      Recent Conversation
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                      {history.slice(-3).map((entry, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setQuestion(entry.question);
+                            handleSubmit(undefined, entry.question);
+                          }}
+                          className="text-xs font-medium bg-orange-50 text-orange-700 px-3 py-2 rounded-lg hover:bg-orange-100 border border-orange-200 hover:border-orange-400 transition-all line-clamp-1 max-w-xs"
+                          title={entry.question}
+                        >
+                          {entry.question}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {error && (
                   <Alert
                     variant="destructive"
@@ -378,10 +404,11 @@ export default function QAEngine() {
                           <p className="text-sm text-gray-700">
                             <strong className="text-orange-700">
                               {source.book_name && (
-                                <>
-                                  {source.book_name} -{" "}
-                                </>
+                                <span style={{ whiteSpace: "pre-wrap" }}>
+                                  {source.book_name}
+                                </span>
                               )}
+                              {source.book_name ? " - " : ""}
                               Page{" "}
                               {source.page_label || source.page || "unknown"}:
                             </strong>{" "}

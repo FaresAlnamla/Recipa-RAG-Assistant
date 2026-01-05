@@ -14,6 +14,9 @@ COOKING_KEYWORDS = {
     "recipe", "ingredients", "cook", "bake", "boil", "fry", "grill", "roast",
     "oven", "temperature", "degrees", "prep", "time", "serves", "yield",
     "cup", "tbsp", "tsp", "grams", "ml",
+    "cheap", "budget", "affordable", "author", "authors", "book", "books",
+    "meal", "family", "lentil", "lentils", "egg", "eggs", "flour",
+    "taste", "good", "simple", "easy", "quick", "fast",
 }
 
 CATALOG_HINTS = {
@@ -52,8 +55,15 @@ def decide_route(user_query: str) -> RouteDecision:
         return RouteDecision(True, "Cooking intent detected.")
 
     food_hints = ["cake", "cookies", "muffin", "egg", "chicken", "rice", "salad", "soup", "pasta", "tuna", "tofu", "pepper"]
-    if any(w in q for w in food_hints):
+    # include common single-word ingredient hints and low-cost indicators
+    extended_hints = food_hints + ["lentil", "lentils", "egg", "eggs", "flour", "cheap", "budget", "meal", "family"]
+    if any(w in q for w in extended_hints):
         return RouteDecision(True, "Food-related intent detected.")
+
+    # Check for questions about the book itself (author, publication, etc.)
+    book_questions = ["author", "write", "published", "publication", "who wrote", "who is the author"]
+    if any(bq in q for bq in book_questions):
+        return RouteDecision(True, "Book metadata question detected.")
 
     return RouteDecision(False, "Out of cookbook scope.")
 

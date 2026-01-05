@@ -1,4 +1,5 @@
 from pathlib import Path
+import logging
 
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -7,6 +8,7 @@ from langchain_chroma import Chroma
 
 from app.config import COOKBOOK_PDF, VECTORSTORE_DIR, get_settings
 
+logger = logging.getLogger(__name__)
 _settings = get_settings()
 
 
@@ -52,12 +54,12 @@ def run_ingestion() -> None:
     2) Split into chunks
     3) Build/persist Chroma vectorstore
     """
-    print(f"Loading PDF from {COOKBOOK_PDF} ...")
+    logger.info(f"Loading PDF from {COOKBOOK_PDF}")
     docs = load_pdf_docs(COOKBOOK_PDF)
-    print(f"Loaded {len(docs)} pages as documents.")
+    logger.info(f"Loaded {len(docs)} pages as documents")
 
     splits = split_docs(docs)
-    print(f"Split into {len(splits)} chunks.")
+    logger.info(f"Split into {len(splits)} chunks")
 
     build_vectorstore(splits)
-    print("Ingestion done. Vectorstore persisted.")
+    logger.info("Ingestion done. Vectorstore persisted")

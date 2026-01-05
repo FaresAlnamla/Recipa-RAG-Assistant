@@ -8,7 +8,7 @@ interface HeroProps {
 
 export default function Hero({ onScrollTo }: HeroProps) {
   return (
-    <section 
+    <section
       id="hero"
       role="region"
       aria-labelledby="hero-heading"
@@ -20,16 +20,21 @@ export default function Hero({ onScrollTo }: HeroProps) {
       {/* Dark Overlay */}
       <div className="absolute inset-0 bg-black/50 backdrop-blur-[1px]" />
 
-      <div className="relative z-10 text-center max-w-[90rem] mx-auto flex flex-col items-center justify-center" tabIndex={-1}>
-        
+      <div
+        className="relative z-10 text-center max-w-[90rem] mx-auto flex flex-col items-center justify-center"
+        tabIndex={-1}
+      >
         {/* Badge */}
         <div className="inline-flex items-center gap-2 mb-6 sm:mb-8 px-6 sm:px-8 py-2 sm:py-3 rounded-full bg-white/10 backdrop-blur-md border border-white/30 text-white text-xs sm:text-sm md:text-base font-bold uppercase tracking-widest shadow-2xl animate-in fade-in zoom-in duration-1000">
           <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-orange-400" />
-          <span>AI-Powered Culinary Intelligence</span>
+          <span>Multi-Agent RAG System</span>
         </div>
 
         {/* --- MAIN PILLAR (TITLE) --- */}
-        <h1 id="hero-heading" className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[9rem] font-extrabold text-white mb-6 sm:mb-8 tracking-tight leading-[0.9] drop-shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-1000">
+        <h1
+          id="hero-heading"
+          className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[9rem] font-extrabold text-white mb-6 sm:mb-8 tracking-tight leading-[0.9] drop-shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-1000"
+        >
           Precision <br />
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-200 to-orange-500">
             Cooking.
@@ -38,7 +43,9 @@ export default function Hero({ onScrollTo }: HeroProps) {
 
         {/* Subtitle */}
         <p className="text-base sm:text-lg md:text-xl lg:text-3xl text-gray-100 mb-8 sm:mb-12 max-w-4xl mx-auto leading-relaxed font-medium drop-shadow-lg animate-in fade-in slide-in-from-bottom-8 duration-1000 px-2 sm:px-4">
-          A professional tool for exploring <strong className="text-white">The Low-Cost Cookbook</strong> with accuracy, speed, and ease.
+          An intelligent agent system for exploring{" "}
+          <strong className="text-white">The Low-Cost Cookbook</strong> with
+          precision, memory, and multi-turn understanding.
         </p>
 
         {/* Action Buttons */}
@@ -62,8 +69,6 @@ export default function Hero({ onScrollTo }: HeroProps) {
           </Button>
         </div>
       </div>
-      
-     
     </section>
   );
 }

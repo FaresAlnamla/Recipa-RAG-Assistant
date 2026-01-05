@@ -26,6 +26,15 @@ Rules:
   - If the user asks only for time, output time only.
 - Respond in the same language as the user's question.
 - When copying cookbook text, keep it exactly as written.
+- You can answer questions about:
+  * Recipe instructions and cooking methods
+  * Ingredients and ingredient substitutions
+  * Cooking times, temperatures, and preparation times
+  * Serving sizes and yields
+  * Cheap/budget-friendly meal ideas
+  * The cookbook itself (author, publication info, etc.)
+  * Lists of recipes available in the book
+  * Any other information that appears in the cookbook
 """
 
 
@@ -44,7 +53,11 @@ FOLLOWUP_KEYWORDS = {
     "how long", "time", "minutes", "mins", "hours", "hrs",
     "serves", "servings", "yield",
     "prep", "prep time", "cook time",
-    "ingredients",
+    "can i", "could i", "should i", "what if",
+    "instead", "substitute", "replace", "change",
+    "add", "remove", "skip", "omit",
+    "put", "topping", "toppings", "serve", "serving", "suggest",
+    "what about", "how about", "instructions", "steps",
 }
 
 CATALOG_HINTS = {
@@ -95,6 +108,7 @@ def _looks_like_followup(q: str) -> bool:
     - old logic: starters, and short queries with followup keywords
     - new logic: also treat medium-length questions that are clearly followup-ish
       like: "What is the prep time and how many servings does it make?"
+    - newer logic: treat short questions as followups by default if they have pronouns/refs
     """
     q = (q or "").strip().lower()
     if not q:
@@ -110,6 +124,13 @@ def _looks_like_followup(q: str) -> bool:
             return False
         # allow up to ~16 words for followups
         if len(q.split()) <= 16:
+            return True
+
+    # Treat very short questions with pronouns/references as likely followups
+    # e.g., "what did you suggest?", "how long?", "what about it?"
+    if len(q.split()) <= 6:
+        ref_pronouns = ["what", "how", "did you", "you", "it", "that"]
+        if any(ref in q for ref in ref_pronouns):
             return True
 
     return False
@@ -234,7 +255,14 @@ def _extract_book_name_from_path(path: Optional[str]) -> Optional[str]:
         import os
         filename = os.path.basename(path)
         book_name = os.path.splitext(filename)[0]
-        return book_name.replace("_", " ").replace("-", " ").title() if book_name else None
+        # Special-case mapping for known cookbook filename patterns to exact display
+        key = (book_name or "").lower()
+        if "low" in key and "cost" in key:
+            # User requested full title for The Low-Cost Cookbook
+            return "THE LOW-COST COOKBOOK"
+
+        # Default: replace underscores/dashes with spaces and title-case
+        return book_name.replace("_", " ").replace("-", " ").strip().title() if book_name else None
     except Exception:
         return None
 
@@ -789,6 +817,17 @@ If the answer is not present, say you cannot find it in the cookbook.
 
         if is_new_recipe or (state == STATE_IN_RECIPE) or is_follow:
             title = _extract_recipe_title_from_context(context)
+            # Fallback: try to extract a title from the first retrieved chunk if context parsing failed
+            if not title and chunks:
+                try:
+                    first = chunks[0]
+                    first_line = (first.content or "").splitlines()[0]
+                    cand = re.split(r"\bingredients\b", first_line, flags=re.IGNORECASE)[0].strip()
+                    if cand and len(cand) >= 3:
+                        title = _normalize_title(cand)
+                except Exception:
+                    title = None
+
             if title:
                 _set_active_recipe(session_id, title)
 
@@ -995,6 +1034,17 @@ If the answer is not present, say you cannot find it in the cookbook.
 
         if is_new_recipe or (state == STATE_IN_RECIPE) or is_follow:
             title = _extract_recipe_title_from_context(context)
+            # Fallback: try to extract a title from the first retrieved chunk if context parsing failed
+            if not title and chunks:
+                try:
+                    first = chunks[0]
+                    first_line = (first.content or "").splitlines()[0]
+                    cand = re.split(r"\bingredients\b", first_line, flags=re.IGNORECASE)[0].strip()
+                    if cand and len(cand) >= 3:
+                        title = _normalize_title(cand)
+                except Exception:
+                    title = None
+
             if title:
                 _set_active_recipe(session_id, title)
 
