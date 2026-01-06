@@ -22,7 +22,7 @@ export const NAV_SECTIONS = [
 
 export const SUGGESTED_QUESTIONS = [
   "How do I make chocolate mug cake?",
-  "What is mini egg muffins ingredients?",
+  "How to make lentis soup?",
   "How to make loaded sweet potato?",
 ];
 
